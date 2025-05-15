@@ -1,0 +1,10 @@
+version: "3.8"
+
+services:
+  bot-whatsapp:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+    restart: unless-stopped
