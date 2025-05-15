@@ -1,17 +1,18 @@
-# Imagem base do Node.js com Chromium instalado
-FROM zenika/node:20-chrome
+# Usa imagem base com Node.js e Chromium já configurado
+FROM browserless/chrome:latest
 
 # Define o diretório de trabalho
 WORKDIR /app
 
-# Copia os arquivos para dentro do container
+# Copia arquivos do projeto
+COPY package*.json ./
 COPY . .
 
-# Instala as dependências
+# Instala dependências
 RUN npm install
 
-# Expõe a porta usada pelo seu servidor Express
+# Expõe a porta usada pelo Express
 EXPOSE 3000
 
-# Inicia o bot
+# Comando para iniciar o bot
 CMD ["node", "index.js"]
