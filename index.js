@@ -1,78 +1,70 @@
+const venom = require('venom-bot');
 const express = require('express');
-const { create } = require('venom-bot');
-const ngrok = require('ngrok');
+const bodyParser = require('body-parser');
 
 const app = express();
-app.use(express.json());
+const port = 3000;
 
-let clientInstance;
+app.use(bodyParser.json());
 
-function obterCumprimento() {
-  const horaAtual = new Date().getHours();
-  if (horaAtual >= 6 && horaAtual < 12) return "Bom dia";
-  if (horaAtual >= 12 && horaAtual < 18) return "Boa tarde";
-  return "Boa noite";
-}
+let client;
 
-(async () => {
-  try {
-    clientInstance = await create({
-  session: 'bot-cobranca',
-  headless: 'new',   // nova flag para headless atual
-  browserArgs: [
-    '--no-sandbox',
-    '--disable-setuid-sandbox',
-    '--disable-dev-shm-usage',
-    '--disable-accelerated-2d-canvas',
-    '--disable-gpu',
-  ],
-});
+venom
+  .create({
+    session: 'bot-cobranca',
+    headless: 'new', // ou false para ver o navegador
+    catchQR: (base64Qrimg, asciiQR, attempts, urlCode) => {
+      console.log('\nQR Code ASCII:\n');
+      console.log(asciiQR); // QR em arte ASCII
+      console.log('\nQR Code Base64:\n');
+      console.log(base64Qrimg); // QR como string base64 (imagem PNG)
 
-    console.log('🤖 Bot WhatsApp iniciado com sucesso!');
+      // Opcional: salvar em arquivo ou gerar imagem em frontend
+      // Você também pode salvar a base64 em um arquivo .txt para abrir depois
+    }
+  })
+  .then((clientInstance) => {
+    client = clientInstance;
+    console.log('Bot iniciado e pronto.');
 
-    const url = await ngrok.connect(3000);
-    console.log(`🚀 ngrok rodando em: ${url}`);
-
-    app.listen(3000, () => {
-      console.log('📡 Servidor rodando na porta 3000');
+    app.listen(port, () => {
+      console.log(`Servidor API rodando na porta ${port}`);
     });
+  })
+  .catch((erro) => {
+    console.error('Erro ao iniciar venom-bot:', erro);
+  });
 
-  } catch (error) {
-    console.error('❌ Erro ao iniciar:', error);
-  }
-})();
-
-app.get('/', (req, res) => res.send('✅ Bot rodando!'));
-
+// Endpoint que recebe os dados via POST
 app.post('/enviar-mensagem', async (req, res) => {
-  const { nome, descricao, link, valor, vencimento, telefone } = req.body;
-
-  if (!clientInstance) return res.status(500).send('❌ Bot não iniciado.');
-  if (!nome || !descricao || !link || !valor || !vencimento || !telefone) {
-    return res.status(400).send('❌ Dados incompletos.');
-  }
-
-  const cumprimento = obterCumprimento();
-  const mensagem = `
-👋 ${cumprimento} *${nome}*,
-
-Segue abaixo o link para pagamento referente a *${descricao}*:
-
-🔗 *[Acesse aqui](${link})*
-
-💰 *Valor:* R$ ${valor}
-📆 *Vencimento:* ${vencimento}
-
-Qualquer dúvida, estamos à disposição.
-Setor Financeira
-IBRA Informática / IBRA Soft
-  `;
-
   try {
-    await clientInstance.sendText(`${telefone}@c.us`, mensagem);
-    res.status(200).send('✅ Mensagem enviada!');
-  } catch (err) {
-    console.error('❌ Erro ao enviar:', err);
-    res.status(500).send('Erro ao enviar.');
+    const { telefone, nome, descricao, link, valor, vencimento } = req.body;
+
+    if (!telefone) {
+      return res.status(400).json({ error: 'Telefone é obrigatório.' });
+    }
+
+    const number = telefone;
+    const mensagem = `Olá ${nome}, 
+    
+    Segue o link da cobrança referente a "${descricao}" 
+    
+    Acesse o link:
+    \n\n${link}
+    
+    💰*Valor:* R$ ${valor} 
+    📅*Vencimento:* ${vencimento}
+    
+    Qualquer dúvida, estamos à disposição.
+    Setor Financeiro
+    IBRA Informática / IBRA Soft`;
+
+    await client.sendText(`${number}@c.us`, mensagem);
+
+    console.log(`Mensagem enviada para ${nome} (${number})`);
+    res.json({ status: 'Mensagem enviada com sucesso!' });
+  } catch (error) {
+    console.error('Erro ao enviar mensagem:', error);
+    res.status(500).json({ error: 'Erro ao enviar mensagem' });
   }
 });
